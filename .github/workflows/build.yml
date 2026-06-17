@@ -1,0 +1,277 @@
+# .github/workflows/build.yml
+name: Build chrome-headless-shell
+
+on:
+  workflow_dispatch:
+    inputs:
+      chromedp_tag:
+        description: 'chromedp/headless-shell tag to source BOTH arch binaries from (`latest`, `stable`, or a version like `148.0.7778.97`)'
+        required: true
+        default: 'stable'
+
+permissions:
+  contents: write
+
+# =============================================================================
+# Single binary source for BOTH arches: chromedp/headless-shell (Google's
+# Chrome for Testing ships no linux-arm64 build, so chromedp is the only source
+# that covers both; amd64 + arm64/v8 pushed daily). Playwright drives this
+# binary via executablePath — verified live, no version-mismatch.
+#
+# Each release ships, per arch, TWO archives:
+#   - chromium-headless-shell-linux-<arch>.tar.gz       the browser binary
+#   - chromium-headless-shell-libs-linux-<arch>.tar.gz  its system libraries
+#
+# The binary comes from chromedp; its libraries are NOT taken from chromedp's
+# Debian-13/glibc-2.41 base — they are extracted on OUR glibc 2.31 floor
+# (Ubuntu 20.04). glibc is backward compatible only upward, so a 2.31 floor
+# runs on any host with glibc 2.31+. Taking chromedp's libs would raise the
+# floor to 2.41 (Ubuntu 25.04+ only).
+#
+# Both jobs run on NATIVE runners (no QEMU): emulated arm64 Chromium segfaults,
+# so the launch guard is only trustworthy on real silicon.
+# =============================================================================
+
+jobs:
+  build-amd64:
+    runs-on: ubuntu-22.04
+    outputs:
+      chromium_version: ${{ steps.pull.outputs.version }}
+    steps:
+      - name: Pull the chromedp binary and read its version
+        id: pull
+        run: |
+          set -euxo pipefail
+          TAG='${{ github.event.inputs.chromedp_tag }}'
+          mkdir -p "${PWD}/out/browser"
+          VER="$(docker run --rm --platform linux/amd64 \
+            --entrypoint /headless-shell/headless-shell \
+            chromedp/headless-shell:"${TAG}" --version \
+            | sed 's/^Chromium //' | tr -d '\r')"
+          echo "version=${VER}" >> "$GITHUB_OUTPUT"
+          # Extract the browser dir (binary + .pak/.so sidecars). Not chromedp's
+          # system libs — those we build ourselves on the glibc floor.
+          CID="$(docker create --platform linux/amd64 chromedp/headless-shell:"${TAG}")"
+          docker cp "${CID}:/headless-shell/." "${PWD}/out/browser/"
+          docker rm "${CID}"
+          test -x "${PWD}/out/browser/headless-shell"
+          ls -la "${PWD}/out/browser"
+
+      - name: Extract the closed library set on the glibc floor
+        run: |
+          set -euxo pipefail
+          docker run --rm --platform linux/amd64 \
+            -v "${PWD}/out:/out" \
+            ubuntu:20.04 bash -euxc '
+              export DEBIAN_FRONTEND=noninteractive
+              apt-get update
+              apt-get install -y dpkg-dev
+              apt-get install -y libnss3 libnspr4 libexpat1
+
+              BIN="/out/browser/headless-shell"
+              mkdir -p /out/lib /out/lib/LICENSES
+
+              ldd "${BIN}" 2>/dev/null | awk "/=> \\// {print \$3}" | sort -u | while read -r lib; do
+                base="$(basename "${lib}")"
+                case "${base}" in
+                  ld-linux*|ld64*|libc.so.*|libm.so.*|libdl.so.*|libpthread.so.*|librt.so.*|libresolv.so.*|libnsl.so.*|libutil.so.*|libanl.so.*)
+                    echo "skip floor : ${base}" ;;
+                  *)
+                    cp -L "${lib}" /out/lib/
+                    echo "bundle     : ${base}"
+                    pkg="$(dpkg -S "$(readlink -f "${lib}")" 2>/dev/null | cut -d: -f1 | sort -u | head -n1 || true)"
+                    if [ -n "${pkg}" ] && [ -f "/usr/share/doc/${pkg}/copyright" ]; then
+                      cp "/usr/share/doc/${pkg}/copyright" "/out/lib/LICENSES/${pkg}.copyright"
+                    else
+                      echo "WARNING: no copyright notice found for ${base} (pkg=${pkg:-unknown})"
+                    fi
+                    ;;
+                esac
+              done
+              chmod 0755 /out/lib/*.so* || true
+              ls -la /out/lib
+            '
+
+      - name: Verify on clean hosts (nothing installed)
+        run: |
+          set -euxo pipefail
+          for img in ubuntu:20.04 ubuntu:24.04 debian:12 fedora:41; do
+            echo "=== guard on ${img} (amd64) ==="
+            docker run --rm --platform linux/amd64 \
+              -v "${PWD}/out:/out" \
+              "${img}" bash -euxc '
+                BIN="/out/browser/headless-shell"
+                test -x "${BIN}"
+                export LD_LIBRARY_PATH=/out/lib
+                timeout 30 "${BIN}" --no-sandbox --headless --disable-gpu \
+                  --disable-dev-shm-usage --version
+                echo "OK: launched with bundled libs, nothing installed"
+              '
+          done
+
+      - name: Package
+        run: |
+          set -euxo pipefail
+          LIBS="chromium-headless-shell-libs-linux-amd64.tar.gz"
+          tar -czf "${LIBS}" -C out/lib .
+          sha256sum "${LIBS}" > "${LIBS}.sha256"
+          BIN="chromium-headless-shell-linux-amd64.tar.gz"
+          tar -czf "${BIN}" -C out/browser .
+          sha256sum "${BIN}" > "${BIN}.sha256"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: chromium-headless-shell-amd64
+          path: |
+            chromium-headless-shell-libs-linux-amd64.tar.gz
+            chromium-headless-shell-libs-linux-amd64.tar.gz.sha256
+            chromium-headless-shell-linux-amd64.tar.gz
+            chromium-headless-shell-linux-amd64.tar.gz.sha256
+
+  build-arm64:
+    runs-on: ubuntu-24.04-arm
+    outputs:
+      chromium_version: ${{ steps.pull.outputs.version }}
+    steps:
+      - name: Pull the chromedp binary and read its version
+        id: pull
+        run: |
+          set -euxo pipefail
+          TAG='${{ github.event.inputs.chromedp_tag }}'
+          mkdir -p "${PWD}/out/browser"
+          VER="$(docker run --rm --platform linux/arm64 \
+            --entrypoint /headless-shell/headless-shell \
+            chromedp/headless-shell:"${TAG}" --version \
+            | sed 's/^Chromium //' | tr -d '\r')"
+          echo "version=${VER}" >> "$GITHUB_OUTPUT"
+          CID="$(docker create --platform linux/arm64 chromedp/headless-shell:"${TAG}")"
+          docker cp "${CID}:/headless-shell/." "${PWD}/out/browser/"
+          docker rm "${CID}"
+          test -x "${PWD}/out/browser/headless-shell"
+          ls -la "${PWD}/out/browser"
+
+      - name: Extract the closed library set on the glibc floor
+        run: |
+          set -euxo pipefail
+          docker run --rm --platform linux/arm64 \
+            -v "${PWD}/out:/out" \
+            ubuntu:20.04 bash -euxc '
+              export DEBIAN_FRONTEND=noninteractive
+              apt-get update
+              apt-get install -y dpkg-dev
+              apt-get install -y libnss3 libnspr4 libexpat1
+
+              BIN="/out/browser/headless-shell"
+              mkdir -p /out/lib /out/lib/LICENSES
+
+              ldd "${BIN}" 2>/dev/null | awk "/=> \\// {print \$3}" | sort -u | while read -r lib; do
+                base="$(basename "${lib}")"
+                case "${base}" in
+                  ld-linux*|ld64*|libc.so.*|libm.so.*|libdl.so.*|libpthread.so.*|librt.so.*|libresolv.so.*|libnsl.so.*|libutil.so.*|libanl.so.*)
+                    echo "skip floor : ${base}" ;;
+                  *)
+                    cp -L "${lib}" /out/lib/
+                    echo "bundle     : ${base}"
+                    pkg="$(dpkg -S "$(readlink -f "${lib}")" 2>/dev/null | cut -d: -f1 | sort -u | head -n1 || true)"
+                    if [ -n "${pkg}" ] && [ -f "/usr/share/doc/${pkg}/copyright" ]; then
+                      cp "/usr/share/doc/${pkg}/copyright" "/out/lib/LICENSES/${pkg}.copyright"
+                    else
+                      echo "WARNING: no copyright notice found for ${base} (pkg=${pkg:-unknown})"
+                    fi
+                    ;;
+                esac
+              done
+              chmod 0755 /out/lib/*.so* || true
+              ls -la /out/lib
+            '
+
+      - name: Verify on clean hosts (nothing installed)
+        run: |
+          set -euxo pipefail
+          for img in ubuntu:20.04 ubuntu:24.04 debian:12 fedora:41; do
+            echo "=== guard on ${img} (arm64) ==="
+            docker run --rm --platform linux/arm64 \
+              -v "${PWD}/out:/out" \
+              "${img}" bash -euxc '
+                BIN="/out/browser/headless-shell"
+                test -x "${BIN}"
+                export LD_LIBRARY_PATH=/out/lib
+                timeout 30 "${BIN}" --no-sandbox --headless --disable-gpu \
+                  --disable-dev-shm-usage --version
+                echo "OK: launched with bundled libs, nothing installed"
+              '
+          done
+
+      - name: Package
+        run: |
+          set -euxo pipefail
+          LIBS="chromium-headless-shell-libs-linux-arm64.tar.gz"
+          tar -czf "${LIBS}" -C out/lib .
+          sha256sum "${LIBS}" > "${LIBS}.sha256"
+          BIN="chromium-headless-shell-linux-arm64.tar.gz"
+          tar -czf "${BIN}" -C out/browser .
+          sha256sum "${BIN}" > "${BIN}.sha256"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: chromium-headless-shell-arm64
+          path: |
+            chromium-headless-shell-libs-linux-arm64.tar.gz
+            chromium-headless-shell-libs-linux-arm64.tar.gz.sha256
+            chromium-headless-shell-linux-arm64.tar.gz
+            chromium-headless-shell-linux-arm64.tar.gz.sha256
+
+  release:
+    needs: [build-amd64, build-arm64]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify both arches built the same Chromium version
+        id: verify
+        run: |
+          set -euxo pipefail
+          AMD='${{ needs.build-amd64.outputs.chromium_version }}'
+          ARM='${{ needs.build-arm64.outputs.chromium_version }}'
+          test -n "${AMD}"
+          if [ "${AMD}" != "${ARM}" ]; then
+            echo "ERROR: amd64 (${AMD}) and arm64 (${ARM}) Chromium versions differ" >&2
+            exit 1
+          fi
+          echo "version=${AMD}" >> "$GITHUB_OUTPUT"
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: chromedp-${{ steps.verify.outputs.version }}
+          name: chrome-headless-shell (Chromium ${{ steps.verify.outputs.version }})
+          body: |
+            Self-contained chrome-headless-shell for Linux: the browser binary
+            plus the system libraries it needs, so it runs on a clean host with
+            no root and nothing installed.
+
+            The binary is sourced from chromedp/headless-shell for BOTH arches
+            (Google's Chrome for Testing ships no linux-arm64 build) and driven
+            via Playwright's executablePath. The system libraries are extracted
+            on a clean Ubuntu 20.04 base (glibc 2.31) and verified to launch the
+            binary on clean Ubuntu, Debian, and Fedora hosts with nothing
+            installed. Runs on any Linux host with glibc 2.31+, any distro.
+
+            Per arch, two archives:
+            - `chromium-headless-shell-linux-<arch>.tar.gz` — the browser binary
+            - `chromium-headless-shell-libs-linux-<arch>.tar.gz` — its libraries
+
+            ## Platforms
+            - amd64 — Linux x64
+            - arm64 — Linux ARM64
+
+            Windows/macOS do not need this (they ship self-contained). musl
+            (Alpine) not covered — glibc-linked libraries do not load on musl.
+          files: |
+            chromium-headless-shell-libs-linux-*
+            chromium-headless-shell-linux-*
