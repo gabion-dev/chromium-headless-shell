@@ -63,8 +63,8 @@ bundled system libraries.
 ### arm64
 
 ```bash
-wget https://github.com/Aletherium/chromium-headless-shell/releases/latest/download/chromium-headless-shell-linux-arm64.tar.gz
-wget https://github.com/Aletherium/chromium-headless-shell/releases/latest/download/chromium-headless-shell-libs-linux-arm64.tar.gz
+wget https://github.com/gabion-dev/chromium-headless-shell/releases/latest/download/chromium-headless-shell-linux-arm64.tar.gz
+wget https://github.com/gabion-dev/chromium-headless-shell/releases/latest/download/chromium-headless-shell-libs-linux-arm64.tar.gz
 
 tar -xzf chromium-headless-shell-linux-arm64.tar.gz -C /path/to/browser
 tar -xzf chromium-headless-shell-libs-linux-arm64.tar.gz -C /path/to/libs
@@ -73,8 +73,8 @@ tar -xzf chromium-headless-shell-libs-linux-arm64.tar.gz -C /path/to/libs
 ### amd64
 
 ```bash
-wget https://github.com/Aletherium/chromium-headless-shell/releases/latest/download/chromium-headless-shell-linux-amd64.tar.gz
-wget https://github.com/Aletherium/chromium-headless-shell/releases/latest/download/chromium-headless-shell-libs-linux-amd64.tar.gz
+wget https://github.com/gabion-dev/chromium-headless-shell/releases/latest/download/chromium-headless-shell-linux-amd64.tar.gz
+wget https://github.com/gabion-dev/chromium-headless-shell/releases/latest/download/chromium-headless-shell-libs-linux-amd64.tar.gz
 
 tar -xzf chromium-headless-shell-linux-amd64.tar.gz -C /path/to/browser
 tar -xzf chromium-headless-shell-libs-linux-amd64.tar.gz -C /path/to/libs
