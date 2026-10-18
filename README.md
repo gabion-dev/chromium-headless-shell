@@ -23,8 +23,8 @@ Each release publishes **two archives per architecture**:
 
 | Archive | Contents |
 |---------|----------|
-| `chromium-headless-shell-linux-<arch>.tar.gz` | Browser binary + GL/Vulkan sidecars + resource paks + locales |
-| `chromium-headless-shell-libs-linux-<arch>.tar.gz` | System libraries (NSS/NSPR/expat/libgcc_s) + license notices |
+| `chromium-headless-shell-linux-<arch>.tar.gz` | Browser binary + GL/Vulkan sidecars + resource paks + locales + Chromium's `LICENSE` |
+| `chromium-headless-shell-libs-linux-<arch>.tar.gz` | System libraries (NSS/NSPR/expat/libgcc_s) + their copyright notices in `LICENSES/` |
 
 Architectures: `amd64`, `arm64`.
 
@@ -112,5 +112,8 @@ The `LD_LIBRARY_PATH` must be set on the process that spawns the browser
 
 ## License
 
-MIT. Bundled system libraries carry their upstream licenses; notices are
-included in `LICENSES/` inside each libs archive.
+The build scripts of this repository are MIT ([LICENSE](LICENSE)). The browser
+binary is Chromium, BSD-3-Clause: its license text travels as `LICENSE` inside
+each browser archive, taken from the Chromium source tree at the exact version
+the binary reports. Bundled system libraries carry their upstream licenses;
+their notices are included in `LICENSES/` inside each libs archive.

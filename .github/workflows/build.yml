@@ -57,6 +57,17 @@ jobs:
           test -x "${PWD}/out/browser/headless-shell"
           ls -la "${PWD}/out/browser"
 
+      # The browser is Chromium, BSD-3-Clause software: its license text
+      # travels inside the browser archive, fetched from the Chromium source
+      # tree at exactly the version the binary reports.
+      - name: Add the Chromium license to the browser tree
+        run: |
+          set -euxo pipefail
+          VER='${{ steps.pull.outputs.version }}'
+          curl -fsSL "https://chromium.googlesource.com/chromium/src/+/refs/tags/${VER}/LICENSE?format=TEXT" \
+            | base64 -d > "${PWD}/out/browser/LICENSE"
+          grep -q "The Chromium Authors" "${PWD}/out/browser/LICENSE"
+
       - name: Extract the closed library set on the glibc floor
         run: |
           set -euxo pipefail
@@ -150,6 +161,17 @@ jobs:
           docker rm "${CID}"
           test -x "${PWD}/out/browser/headless-shell"
           ls -la "${PWD}/out/browser"
+
+      # The browser is Chromium, BSD-3-Clause software: its license text
+      # travels inside the browser archive, fetched from the Chromium source
+      # tree at exactly the version the binary reports.
+      - name: Add the Chromium license to the browser tree
+        run: |
+          set -euxo pipefail
+          VER='${{ steps.pull.outputs.version }}'
+          curl -fsSL "https://chromium.googlesource.com/chromium/src/+/refs/tags/${VER}/LICENSE?format=TEXT" \
+            | base64 -d > "${PWD}/out/browser/LICENSE"
+          grep -q "The Chromium Authors" "${PWD}/out/browser/LICENSE"
 
       - name: Extract the closed library set on the glibc floor
         run: |
@@ -263,8 +285,10 @@ jobs:
             installed. Runs on any Linux host with glibc 2.31+, any distro.
 
             Per arch, two archives:
-            - `chromium-headless-shell-linux-<arch>.tar.gz` — the browser binary
-            - `chromium-headless-shell-libs-linux-<arch>.tar.gz` — its libraries
+            - `chromium-headless-shell-linux-<arch>.tar.gz` — the browser binary,
+              with Chromium's BSD-3-Clause `LICENSE` beside it
+            - `chromium-headless-shell-libs-linux-<arch>.tar.gz` — its libraries,
+              with their copyright notices under `LICENSES/`
 
             ## Platforms
             - amd64 — Linux x64
