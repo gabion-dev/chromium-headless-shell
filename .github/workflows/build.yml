@@ -134,7 +134,7 @@ jobs:
           sha256sum "${BIN}" > "${BIN}.sha256"
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: chromium-headless-shell-amd64
           path: |
@@ -239,7 +239,7 @@ jobs:
           sha256sum "${BIN}" > "${BIN}.sha256"
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: chromium-headless-shell-arm64
           path: |
@@ -266,12 +266,12 @@ jobs:
           echo "version=${AMD}" >> "$GITHUB_OUTPUT"
 
       - name: Download all artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           merge-multiple: true
 
       - name: Create Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: chromedp-${{ steps.verify.outputs.version }}
           name: chrome-headless-shell (Chromium ${{ steps.verify.outputs.version }})
