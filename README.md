@@ -12,10 +12,14 @@ archives that bundle those libraries alongside the browser binary so they load
 from a user-writable directory via `LD_LIBRARY_PATH` — no sudo, no package
 manager, no system modification.
 
-Google's Chrome for Testing does not ship a `linux-arm64`
-chrome-headless-shell build. This repository provides both `amd64` and `arm64`
-from [chromedp/headless-shell](https://github.com/chromedp/headless-shell),
-which builds Chromium from source for both architectures.
+This repository provides both `amd64` and `arm64` from
+[chromedp/headless-shell](https://github.com/chromedp/headless-shell), which
+builds Chromium from source for headless use on both architectures. Google's
+Chrome for Testing ships a `linux-arm64` chrome-headless-shell too (since
+version 153), but that binary needs 28 system libraries directly and 40 with
+their dependencies — X11, GLib, ATK, D-Bus, systemd, udev, SELinux, GBM,
+ALSA — while chromedp's needs four (NSS, NSPR, expat, libgcc_s). Fewer
+bundled libraries means fewer ways to break on a host.
 
 ## What ships
 

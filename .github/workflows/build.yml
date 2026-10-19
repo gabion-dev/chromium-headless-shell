@@ -13,9 +13,12 @@ permissions:
   contents: write
 
 # =============================================================================
-# Single binary source for BOTH arches: chromedp/headless-shell (Google's
-# Chrome for Testing ships no linux-arm64 build, so chromedp is the only source
-# that covers both; amd64 + arm64/v8 pushed daily). Playwright drives this
+# Single binary source for BOTH arches: chromedp/headless-shell (amd64 +
+# arm64/v8 pushed daily). Chrome for Testing also ships linux-arm64 since 153,
+# but its headless shell needs 28 system libraries directly and 40 with their
+# dependencies (X11, GLib, ATK, D-Bus, systemd, udev, SELinux, GBM, ALSA);
+# chromedp's needs four (NSS, NSPR, expat, libgcc_s), and every library is
+# one more thing to bundle and to break on a host. Playwright drives this
 # binary via executablePath — verified live, no version-mismatch.
 #
 # Each release ships, per arch, TWO archives:
