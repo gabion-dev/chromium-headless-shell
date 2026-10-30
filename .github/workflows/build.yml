@@ -248,8 +248,13 @@ jobs:
             chromium-headless-shell-linux-arm64.tar.gz
             chromium-headless-shell-linux-arm64.tar.gz.sha256
 
+  # The repository's dependency audit (audit.yml): a release is published
+  # only while every release this repository pins is current or declared.
+  audit:
+    uses: ./.github/workflows/audit.yml
+
   release:
-    needs: [build-amd64, build-arm64]
+    needs: [build-amd64, build-arm64, audit]
     runs-on: ubuntu-latest
     steps:
       - name: Verify both arches built the same Chromium version

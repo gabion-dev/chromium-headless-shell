@@ -113,6 +113,10 @@ The `LD_LIBRARY_PATH` must be set on the process that spawns the browser
   clean distro images. A binary that fails to start is never shipped.
 - **arm64:** built on a native `ubuntu-24.04-arm` runner. QEMU-emulated arm64
   Chromium segfaults, so the guard requires real silicon.
+- **Audit:** a release is published only when the dependency audit of this
+  repository passes ([`.github/workflows/audit.yml`](.github/workflows/audit.yml), also run by hand
+  from the Actions tab): every GitHub Action the workflows pin is its newest
+  release, or a lag declared in `gabion-audit.json` with its reason.
 
 ## License
 

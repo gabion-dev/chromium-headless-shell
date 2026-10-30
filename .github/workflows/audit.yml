@@ -1,0 +1,42 @@
+# .github/workflows/audit.yml
+#
+# The dependency audit of this repository (the gabion-audit package): every
+# release the repository pins, against the newest one its source publishes.
+# Only what is undeclared fails — a lag kept on purpose is declared in
+# gabion-audit.json with its reason and the event that ends it, and a
+# declaration that no longer matches anything fails as well.
+#
+# Runs by the button, and from the release workflow before it publishes, so
+# a release goes out current or with every lag declared. It does not run on
+# push: whether a dependency is current changes with what others publish,
+# not with this repository's commits.
+#
+# The version of the audit below is itself a pin declared in
+# gabion-audit.json, so the audit judges its own freshness too.
+
+name: Audit
+
+on:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          package-manager-cache: false
+
+      - name: Audit
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: npx --yes gabion-audit@0.1.1
