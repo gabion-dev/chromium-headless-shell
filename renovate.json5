@@ -1,0 +1,12 @@
+// renovate.json5
+//
+// The dependency updates of this repository come from the organisation's
+// Renovate (gabion-dev/renovate-config): the preset below carries the
+// policy — a seven-day release age, grouped and scheduled pull requests,
+// a Dependency Dashboard issue, vulnerability fixes without delay, GitHub
+// Actions pinned by digest. Only what is particular to this repository is
+// written here.
+{
+  $schema: "https://docs.renovatebot.com/renovate-schema.json",
+  extends: ["local>gabion-dev/renovate-config"],
+}
